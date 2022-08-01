@@ -156,25 +156,6 @@ Only available in Emacs 27 and above."
   :type 'boolean
   :group 'lsp-pyright)
 
-(defun lsp-pyright-locate-venv ()
-  "Look for virtual environments local to the workspace."
-  (or lsp-pyright-venv-path
-      (and lsp-pyright-venv-directory
-           (-when-let (venv-base-directory (locate-dominating-file default-directory lsp-pyright-venv-directory))
-             (concat venv-base-directory lsp-pyright-venv-directory)))
-      (-when-let (venv-base-directory (locate-dominating-file default-directory "venv/"))
-        (concat venv-base-directory "venv"))
-      (-when-let (venv-base-directory (locate-dominating-file default-directory ".venv/"))
-        (concat venv-base-directory ".venv"))))
-
-(defun lsp-pyright-locate-python ()
-  "Look for python executable cmd to the workspace."
-  (or (executable-find (f-expand "bin/python" (lsp-pyright-locate-venv)))
-      (with-no-warnings
-        (if (>= emacs-major-version 27)
-            (executable-find lsp-pyright-python-executable-cmd lsp-pyright-prefer-remote-env)
-          (executable-find lsp-pyright-python-executable-cmd)))))
-
 (defun lsp-pyright--begin-progress-callback (workspace &rest _)
   "Log begin progress information.
 Current LSP WORKSPACE should be passed in."
@@ -215,7 +196,7 @@ Current LSP WORKSPACE should be passed in."
    ("python.analysis.logLevel" lsp-pyright-log-level)
    ("python.analysis.autoSearchPaths" lsp-pyright-auto-search-paths t)
    ("python.analysis.extraPaths" lsp-pyright-extra-paths)
-   ("python.pythonPath" lsp-pyright-locate-python)
+   ("python.pythonPath" dominating-python-locate-python)
    ;; We need to send empty string, otherwise  pyright-langserver fails with parse error
    ("python.venvPath" (lambda () (or lsp-pyright-venv-path "")))))
 
