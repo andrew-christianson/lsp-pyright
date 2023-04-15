@@ -205,26 +205,46 @@ Current LSP WORKSPACE should be passed in."
                 '(:npm :package "pyright"
                        :path "pyright-langserver"))
 
+(defun lsp-pyright--find-langserver (&optional path)
+  (or path (executable-find "pyright-langserver" t) (lsp-package-path 'pyright)))
+
+(defun lsp-pyright--new-connection-args (&optional path)
+  (cons (lsp-pyright--find-langserver path) lsp-pyright-langserver-command-args))
+
+(defun lsp-pyright--initialize-fn  (workspace)
+  (with-lsp-workspace workspace
+	;; we send empty settings initially, LSP server will ask for the
+	;; configuration of each workspace folder later separately
+	(lsp--set-configuration
+	 (make-hash-table :test 'equal))))
+
+(defvar lsp-pyright--notification-handlers
+  (lsp-ht ("pyright/beginProgress" 'lsp-pyright--begin-progress-callback)
+          ("pyright/reportProgress" 'lsp-pyright--report-progress-callback)
+          ("pyright/endProgress" 'lsp-pyright--end-progress-callback)))
+
 (lsp-register-client
  (make-lsp-client
-  :new-connection (lsp-stdio-connection (lambda ()
-                                          (cons (lsp-package-path 'pyright)
-                                                lsp-pyright-langserver-command-args)))
-  :major-modes '(python-mode)
+  :new-connection (lsp-stdio-connection (lsp-pyright--new-connection-args))
+  :major-modes '(python-mode python-ts-mode)
   :server-id 'pyright
   :multi-root lsp-pyright-multi-root
   :priority 3
-  :initialized-fn (lambda (workspace)
-                    (with-lsp-workspace workspace
-                      ;; we send empty settings initially, LSP server will ask for the
-                      ;; configuration of each workspace folder later separately
-                      (lsp--set-configuration
-                       (make-hash-table :test 'equal))))
+  :initialized-fn #'lsp-pyright--initialize-fn
+  :notification-handlers lsp-pyright--notification-handlers
   :download-server-fn (lambda (_client callback error-callback _update?)
-                        (lsp-package-ensure 'pyright callback error-callback))
-  :notification-handlers (lsp-ht ("pyright/beginProgress" 'lsp-pyright--begin-progress-callback)
-                                 ("pyright/reportProgress" 'lsp-pyright--report-progress-callback)
-                                 ("pyright/endProgress" 'lsp-pyright--end-progress-callback))))
+                        (lsp-package-ensure 'pyright callback error-callback))))
+
+(lsp-register-client
+ (make-lsp-client
+  :new-connection (lsp-tramp-connection (lsp-pyright--new-connection-args "pyright-langserver"))
+  :major-modes '(python-mode python-ts-mode)
+  :server-id 'pyright-remote
+  :multi-root lsp-pyright-multi-root
+  :remote? t
+  :priority 1
+  :initialized-fn #'lsp-pyright--initialize-fn
+  :notification-handlers lsp-pyright--notification-handlers))
 
 (provide 'lsp-pyright)
 ;;; lsp-pyright.el ends here
